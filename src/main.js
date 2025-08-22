@@ -13,10 +13,43 @@ requireAll(req)
 
 const app = createApp(App)
 
-// TODO 待完善全局异常捕获
-// app.config.errorHandler = (err, vm, info) => {
-//   console.log('[全局异常]', err, vm, info)
-// }
+// Global error handler for unhandled exceptions
+app.config.errorHandler = (err, instance, info) => {
+  console.error('[全局异常]', err, instance, info)
+  
+  // Send to Sentry if available
+  if (window.Sentry) {
+    window.Sentry.captureException(err, {
+      contexts: {
+        vue: {
+          componentName: instance?.$options.name || 'Unknown',
+          lifecycle: info
+        }
+      }
+    })
+  }
+  
+  // Show user-friendly error message
+  const { ElMessage } = require('element-plus')
+  ElMessage.error('应用遇到了意外错误，请刷新页面重试')
+}
+
+// Handle unhandled promise rejections
+window.addEventListener('unhandledrejection', event => {
+  console.error('[未处理的Promise拒绝]', event.reason)
+  
+  // Send to Sentry if available
+  if (window.Sentry) {
+    window.Sentry.captureException(event.reason)
+  }
+  
+  // Show user-friendly error message
+  const { ElMessage } = require('element-plus')
+  ElMessage.error('网络请求失败，请检查网络连接')
+  
+  // Prevent default browser error handling
+  event.preventDefault()
+})
 
 const websiteCfg = JSON.parse(localStorage.getItem('zmindmap_website') || '{}')
 const isDark = websiteCfg?.isDark

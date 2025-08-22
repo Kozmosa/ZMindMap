@@ -150,6 +150,7 @@ import { ElMessage } from 'element-plus'
 import Cropper from 'cropperjs'
 import useWebsiteStore from '@/store/website'
 import useUserStore from '@/store/user'
+import useErrorHandler from '@/hooks/useErrorHandler'
 import { useRouter } from 'vue-router'
 import SvgIcon from '@/components/SvgIcon.vue'
 import 'cropperjs/dist/cropper.css'
@@ -162,6 +163,7 @@ export default defineComponent({
   setup() {
     const websiteStore = useWebsiteStore()
     const userStore = useUserStore()
+    const { handleApiError } = useErrorHandler()
     const router = useRouter()
     const user = computed(() => userStore.getUser)
     const isDarkMode = ref(websiteStore.isDark)
@@ -204,9 +206,8 @@ export default defineComponent({
             editStatus.showEditAvatar = !editStatus.showEditAvatar
             ElMessage.success('头像更新成功')
           } catch (error) {
-            console.error('Failed to update avatar:', error)
             editStatus.isSaving = false
-            ElMessage.error('头像更新失败，请稍后重试')
+            handleApiError(error, '头像更新失败，请稍后重试')
             // Keep dialog open so user can retry
           }
         })
@@ -258,8 +259,7 @@ export default defineComponent({
           editStatus.isEditName = !editStatus.isEditName
           ElMessage.success('用户名更新成功')
         } catch (error) {
-          console.error('Failed to update user name:', error)
-          ElMessage.error('用户名更新失败，请稍后重试')
+          handleApiError(error, '用户名更新失败，请稍后重试')
           // Keep editing mode active so user can retry
         }
       } else {
