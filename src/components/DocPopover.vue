@@ -24,7 +24,7 @@
     </div>
     <div class="pop-item" @click="addQuick(data)">
       <SvgIcon icon="add-quick" />
-      <span>添加到快捷访问</span>
+      <span>{{ store.isInQuickAccess(data.id) ? '从快速访问中移除' : '添加到快速访问' }}</span>
     </div>
     <div class="pop-item" @click="removeData(data)">
       <SvgIcon icon="delete" />
@@ -70,7 +70,8 @@
 </template>
 
 <script>
-import { defineComponent, ref } from 'vue'
+import { defineComponent, ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import useDocStore from '@/store/doc'
 import useUserStore from '@/store/user'
 import SvgIcon from '@/components/SvgIcon.vue'
@@ -134,7 +135,14 @@ export default defineComponent({
       })
     }
     const addQuick = data => {
-      console.log('[click]addQuick')
+      const isAlreadyAdded = store.isInQuickAccess(data.id)
+      if (isAlreadyAdded) {
+        store.removeFromQuickAccess(data.id)
+        ElMessage.success('已从快速访问中移除')
+      } else {
+        store.addToQuickAccess(data.id)
+        ElMessage.success('已添加到快速访问')
+      }
     }
     return {
       newName,
@@ -147,7 +155,8 @@ export default defineComponent({
       removeData,
       submitRemove,
       submitRename,
-      addQuick
+      addQuick,
+      store
     }
   }
 })
