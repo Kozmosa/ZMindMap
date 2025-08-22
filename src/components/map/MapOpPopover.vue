@@ -10,19 +10,40 @@
         <svg-icon icon="more" />
       </div>
     </template>
-    <div class="pop-item" @click="download()">
+    <div class="pop-item" @click="showExportMenu = !showExportMenu">
       <svg-icon icon="download" />
-      <span>导出为图片</span>
+      <span>导出</span>
+      <svg-icon icon="triangle" :class="{ 'icon-rotate': showExportMenu }" class="expand-icon" />
+    </div>
+    
+    <!-- Export submenu -->
+    <div v-if="showExportMenu" class="submenu">
+      <div class="pop-item submenu-item" @click="downloadAs('png')">
+        <svg-icon icon="image" />
+        <span>导出为 PNG</span>
+      </div>
+      <div class="pop-item submenu-item" @click="downloadAs('svg')">
+        <svg-icon icon="vector" />
+        <span>导出为 SVG</span>
+      </div>
+      <div class="pop-item submenu-item" @click="downloadAs('json')">
+        <svg-icon icon="code" />
+        <span>导出为 JSON</span>
+      </div>
+      <div class="pop-item submenu-item" @click="downloadAs('pdf')">
+        <svg-icon icon="file" />
+        <span>导出为高清图片</span>
+      </div>
     </div>
   </el-popover>
 </template>
 
 <script>
-import { defineComponent, computed, onUnmounted } from 'vue'
+import { defineComponent, computed, onUnmounted, ref } from 'vue'
 import useMapStore from '@/store/map'
 import SvgIcon from '@/components/SvgIcon.vue'
 import { ErrorTip } from '@/hooks/utils'
-import svg2Png from '@/hooks/svg2Png'
+import { MindMapExporter } from '@/hooks/exportMindMap'
 import { ElLoading, ElMessage } from 'element-plus'
 
 export default defineComponent({
@@ -39,32 +60,63 @@ export default defineComponent({
   setup(props) {
     const store = useMapStore()
     const mapData = computed(() => store.mapData)
+    const showExportMenu = ref(false)
     let loading
-    const download = async () => {
+
+    const downloadAs = async (format) => {
       if (!props.isMap) {
         ErrorTip('请切换到导图再试')
         return
       }
+
       loading = ElLoading.service({
         lock: true,
-        text: '努力导出中...',
+        text: `正在导出为 ${format.toUpperCase()}...`,
         background: 'rgba(0, 0, 0, 0.5)'
       })
-      svg2Png('mainSvg', mapData.value?.name)
-        .then(() => {
-          loading.close()
-          ElMessage.success('导出成功')
-        })
-        .catch(err => {
-          loading.close()
-          ElMessage.error(err.message)
-        })
+
+      try {
+        const exporter = new MindMapExporter('mainSvg', mapData.value)
+        const fileName = mapData.value?.name || '思维导图'
+
+        switch (format) {
+          case 'png':
+            await exporter.exportPNG(fileName)
+            break
+          case 'svg':
+            await exporter.exportSVG(fileName)
+            break
+          case 'json':
+            await exporter.exportJSON(fileName)
+            break
+          case 'pdf':
+            await exporter.exportHighResPNG(fileName)
+            break
+          default:
+            throw new Error(`不支持的导出格式: ${format}`)
+        }
+
+        ElMessage.success(`导出成功`)
+        showExportMenu.value = false
+      } catch (error) {
+        console.error('Export failed:', error)
+        ElMessage.error(`导出失败: ${error.message}`)
+      } finally {
+        loading.close()
+      }
     }
+
+    // Legacy function for backward compatibility
+    const download = () => downloadAs('png')
+
     onUnmounted(() => {
       loading && loading.close()
     })
+
     return {
-      download
+      showExportMenu,
+      download,
+      downloadAs
     }
   }
 })
@@ -114,6 +166,32 @@ export default defineComponent({
     }
     span {
       margin-left: 12px;
+      flex: 1;
+    }
+    
+    .expand-icon {
+      margin-left: auto;
+      margin-right: 0;
+      transition: transform 0.3s ease;
+      &.icon-rotate {
+        transform: rotate(90deg);
+      }
+    }
+  }
+  
+  .submenu {
+    margin-left: 20px;
+    border-left: 1px solid #e4e7ed;
+    
+    .submenu-item {
+      padding-left: 20px;
+      font-size: 13px;
+      height: 28px;
+      line-height: 28px;
+      
+      &:hover {
+        @include background_color(bc_pop_hover);
+      }
     }
   }
 }
