@@ -146,6 +146,7 @@ import {
   reactive,
   toRefs
 } from 'vue'
+import { ElMessage } from 'element-plus'
 import Cropper from 'cropperjs'
 import useWebsiteStore from '@/store/website'
 import useUserStore from '@/store/user'
@@ -190,16 +191,24 @@ export default defineComponent({
           imageSmoothingQuality: 'high'
         })
         .toBlob(async blob => {
-          const file = new File([blob], curFileName)
-          await userStore.updateUser({
-            user: {
-              ...user.value,
-              name: editStatus.editedName
-            },
-            file
-          })
-          editStatus.isSaving = false
-          editStatus.showEditAvatar = !editStatus.showEditAvatar
+          try {
+            const file = new File([blob], curFileName)
+            await userStore.updateUser({
+              user: {
+                ...user.value,
+                name: editStatus.editedName
+              },
+              file
+            })
+            editStatus.isSaving = false
+            editStatus.showEditAvatar = !editStatus.showEditAvatar
+            ElMessage.success('头像更新成功')
+          } catch (error) {
+            console.error('Failed to update avatar:', error)
+            editStatus.isSaving = false
+            ElMessage.error('头像更新失败，请稍后重试')
+            // Keep dialog open so user can retry
+          }
         })
     }
 
@@ -239,14 +248,20 @@ export default defineComponent({
     }
     const toggleEditName = async () => {
       if (editStatus.isEditName && editStatus.editedName) {
-        // TODO 提交失败了怎么办
-        await userStore.updateUser({
-          user: {
-            ...user.value,
-            name: editStatus.editedName
-          }
-        })
-        editStatus.isEditName = !editStatus.isEditName
+        try {
+          await userStore.updateUser({
+            user: {
+              ...user.value,
+              name: editStatus.editedName
+            }
+          })
+          editStatus.isEditName = !editStatus.isEditName
+          ElMessage.success('用户名更新成功')
+        } catch (error) {
+          console.error('Failed to update user name:', error)
+          ElMessage.error('用户名更新失败，请稍后重试')
+          // Keep editing mode active so user can retry
+        }
       } else {
         editStatus.isEditName = !editStatus.isEditName
       }
