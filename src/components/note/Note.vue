@@ -36,6 +36,7 @@
                 @paste="onPaste($event, node)"
                 @input="onNodeInput($event, node)"
                 @keydown="onKeyDown($event, node)"
+                @contextmenu="onNodeContextMenu($event, node)"
               ></div>
               <div
                 class="image-wrapper"
@@ -70,6 +71,13 @@
         </div>
       </div>
     </div>
+    
+    <!-- Context Menu for Node -->
+    <context-menu
+      ref="contextMenuRef"
+      :menu-items="contextMenuItems"
+      @item-click="handleContextMenuClick"
+    />
   </div>
 </template>
 
@@ -77,8 +85,10 @@
 import { defineComponent, onUnmounted, nextTick, computed, watch } from 'vue'
 import SvgIcon from '@/components/SvgIcon.vue'
 import NotePopover from '@/components/note/NotePopover.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import { debounce } from '@/hooks/utils'
 import useSnapShot from '@/hooks/useSnapshot'
+import useContextMenu from '@/hooks/useContextMenu'
 import * as useContent from '@/hooks/useContent'
 import useNoteList from '@/hooks/note/useNote'
 
@@ -86,11 +96,20 @@ export default defineComponent({
   name: 'note',
   components: {
     SvgIcon,
-    NotePopover
+    NotePopover,
+    ContextMenu
   },
   setup() {
     const [rootNode, childNodes] = useNoteList()
     const addSnapShot = useSnapShot()
+    const {
+      contextMenuRef,
+      contextMenuItems,
+      showContextMenu,
+      handleContextMenuClick,
+      createNodeContextMenu
+    } = useContextMenu()
+    
     const imgSrcList = computed(() => {
       if (!childNodes.value) return []
       const srcList = []
@@ -230,6 +249,46 @@ export default defineComponent({
     const onDeleteImg = async node => {
       await useContent.deleteImg(node.id)
     }
+
+    // Context menu handlers for nodes
+    const nodeContextMenuHandlers = {
+      addChild: async (node) => {
+        const newId = await useContent.addNode(node.id)
+        if (newId) {
+          nextTick(() => useContent.moveToLastFocus(newId))
+        }
+      },
+      addSibling: async (node) => {
+        const newId = await useContent.addNode(node.parent)
+        if (newId) {
+          nextTick(() => useContent.moveToLastFocus(newId))
+        }
+      },
+      copy: (node) => {
+        // TODO: Implement copy functionality
+        console.log('Copy node:', node)
+      },
+      paste: (node) => {
+        // TODO: Implement paste functionality
+        console.log('Paste to node:', node)
+      },
+      canPaste: () => {
+        // TODO: Check if clipboard has content
+        return false
+      },
+      toggleCollapse: async (node) => {
+        await useContent.collapse(node.id)
+      },
+      deleteNode: async (node) => {
+        await useContent.deleteNode(node.id, childNodes.value)
+      }
+    }
+
+    const onNodeContextMenu = (event, node) => {
+      const menuItems = createNodeContextMenu(node, nodeContextMenuHandlers)
+      showContextMenu(event, menuItems, node)
+    }
+
     return {
       rootNode,
       childNodes,
@@ -240,7 +299,11 @@ export default defineComponent({
       onNameInput,
       onChangeFontColor,
       onPaste,
-      onDeleteImg
+      onDeleteImg,
+      contextMenuRef,
+      contextMenuItems,
+      handleContextMenuClick,
+      onNodeContextMenu
     }
   }
 })

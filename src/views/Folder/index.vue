@@ -14,6 +14,7 @@
       style="width: 100%"
       row-class-name="table-row"
       @row-click="onRowClick"
+      @row-contextmenu="onRowContextMenu"
     >
       <el-table-column label="文件名" min-width="40%">
         <template #default="scope">
@@ -47,6 +48,7 @@
         v-for="row in docTableData"
         :key="row.id"
         @click="onRowClick(row)"
+        @contextmenu="onGridItemContextMenu($event, row)"
       >
         <SvgIcon
           class="icon"
@@ -62,6 +64,13 @@
       <img :src="ICON_EMPTY" alt="" />
       <p class="empty-info">暂无文件，点击左上角"+"新建文件</p>
     </div>
+    
+    <!-- Context Menu -->
+    <context-menu
+      ref="contextMenuRef"
+      :menu-items="contextMenuItems"
+      @item-click="handleContextMenuClick"
+    />
   </div>
 </template>
 <script>
@@ -72,9 +81,11 @@ import useWebsiteStore from '@/store/website'
 import useDocStore from '@/store/doc'
 import useLoading from '@/hooks/useLoading'
 import useErrorHandler from '@/hooks/useErrorHandler'
+import useContextMenu from '@/hooks/useContextMenu'
 
 import SvgIcon from '@/components/SvgIcon.vue'
 import DocPopover from '@/components/DocPopover.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import ICON_EMPTY from '@/assets/pic/empty.png'
 import BreadCrumb from './components/BreadCrumb.vue'
 
@@ -82,7 +93,8 @@ export default {
   components: {
     BreadCrumb,
     SvgIcon,
-    DocPopover
+    DocPopover,
+    ContextMenu
   },
   setup() {
     const docStore = useDocStore()
@@ -91,6 +103,13 @@ export default {
     const route = useRoute()
     const { isLoading, withLoading } = useLoading(true)
     const { handleApiError } = useErrorHandler()
+    const {
+      contextMenuRef,
+      contextMenuItems,
+      showContextMenu,
+      handleContextMenuClick,
+      createFileContextMenu
+    } = useContextMenu()
 
     const folderId = route.params?.id || '0'
     const navigationList = computed(() => docStore.getNavigationLists(folderId))
@@ -122,6 +141,43 @@ export default {
     const onToggleStyle = () => {
       websiteStore.toggleShowTable()
     }
+
+    // Context menu handlers
+    const contextMenuHandlers = {
+      open: (data) => {
+        onRowClick(data)
+      },
+      addFolder: (data) => {
+        // Use existing DocPopover functionality
+        console.log('Add folder to:', data)
+      },
+      addFile: (data) => {
+        // Use existing DocPopover functionality  
+        console.log('Add file to:', data)
+      },
+      rename: (data) => {
+        // Use existing DocPopover functionality
+        console.log('Rename:', data)
+      },
+      addQuick: (data) => {
+        docStore.addToQuickAccess(data.id)
+      },
+      delete: (data) => {
+        // Use existing DocPopover functionality
+        console.log('Delete:', data)
+      }
+    }
+
+    const onRowContextMenu = (row, column, event) => {
+      const menuItems = createFileContextMenu(row, contextMenuHandlers)
+      showContextMenu(event, menuItems, row)
+    }
+
+    const onGridItemContextMenu = (event, row) => {
+      const menuItems = createFileContextMenu(row, contextMenuHandlers)
+      showContextMenu(event, menuItems, row)
+    }
+
     return {
       hasData,
       showTable,
@@ -131,7 +187,12 @@ export default {
       onRowClick,
       onToggleStyle,
       isFolder,
-      ICON_EMPTY
+      ICON_EMPTY,
+      contextMenuRef,
+      contextMenuItems,
+      handleContextMenuClick,
+      onRowContextMenu,
+      onGridItemContextMenu
     }
   }
 }
