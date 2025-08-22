@@ -1,6 +1,6 @@
 <template>
-  <div class="container">
-    <div class="header">
+  <div class="container" v-loading="isLoading" element-loading-text="加载文件列表中...">
+    <div class="header" v-if="!isLoading">
       <bread-crumb :list="navigationList" />
       <div class="btn-wrapper">
         <div class="btn-show" @click="onToggleStyle" title="切换显示方式">
@@ -9,7 +9,7 @@
       </div>
     </div>
     <el-table
-      v-if="hasData && showTable"
+      v-if="hasData && showTable && !isLoading"
       :data="docTableData"
       style="width: 100%"
       row-class-name="table-row"
@@ -41,7 +41,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <div class="grid" v-if="hasData && !showTable">
+    <div class="grid" v-if="hasData && !showTable && !isLoading">
       <div
         class="grid-item"
         v-for="row in docTableData"
@@ -58,18 +58,20 @@
         </div>
       </div>
     </div>
-    <div class="empty" v-show="!hasData">
+    <div class="empty" v-show="!hasData && !isLoading">
       <img :src="ICON_EMPTY" alt="" />
       <p class="empty-info">暂无文件，点击左上角"+"新建文件</p>
     </div>
   </div>
 </template>
 <script>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 import useWebsiteStore from '@/store/website'
 import useDocStore from '@/store/doc'
+import useLoading from '@/hooks/useLoading'
+import useErrorHandler from '@/hooks/useErrorHandler'
 
 import SvgIcon from '@/components/SvgIcon.vue'
 import DocPopover from '@/components/DocPopover.vue'
@@ -87,12 +89,26 @@ export default {
     const websiteStore = useWebsiteStore()
     const router = useRouter()
     const route = useRoute()
+    const { isLoading, withLoading } = useLoading(true)
+    const { handleApiError } = useErrorHandler()
 
     const folderId = route.params?.id || '0'
     const navigationList = computed(() => docStore.getNavigationLists(folderId))
     const docTableData = computed(() => docStore.getAllDocuments(folderId))
     const hasData = computed(() => docTableData.value?.length)
     const showTable = computed(() => websiteStore.showTable)
+
+    // Load documents with loading state and error handling
+    onMounted(async () => {
+      try {
+        await withLoading(
+          () => docStore.fetchAllDocuments(),
+          '加载文件列表中...'
+        )
+      } catch (error) {
+        handleApiError(error, '加载文件列表失败')
+      }
+    })
 
     const isFolder = row => 'folderType' in row
     const onRowClick = (row, column, event) => {
@@ -111,6 +127,7 @@ export default {
       showTable,
       navigationList,
       docTableData,
+      isLoading,
       onRowClick,
       onToggleStyle,
       isFolder,
