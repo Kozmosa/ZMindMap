@@ -123,15 +123,19 @@ function flatToTree(data) {
   const values = Object.values(data)
   const treeData = values.filter(item => {
     const { _children, id } = item
+    const childNodes = values.filter(e => e.parent === id)
+    
+    // Preserve the original collapsed state
+    // If node was collapsed (_children has items), keep it collapsed
+    // If node was expanded (children has items), keep it expanded
     if (_children.length) {
-      item._children = values.filter(e => {
-        return id === e.parent
-      })
+      item._children = childNodes
+      item.children = [] // Ensure children is empty when collapsed
     } else {
-      item.children = values.filter(e => {
-        return id === e.parent
-      })
+      item.children = childNodes
+      item._children = [] // Ensure _children is empty when expanded
     }
+    
     return item.parent === '-1'
   })
   return treeData[0]

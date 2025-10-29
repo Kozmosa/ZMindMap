@@ -146,9 +146,11 @@ import {
   reactive,
   toRefs
 } from 'vue'
+import { ElMessage } from 'element-plus'
 import Cropper from 'cropperjs'
 import useWebsiteStore from '@/store/website'
 import useUserStore from '@/store/user'
+import useErrorHandler from '@/hooks/useErrorHandler'
 import { useRouter } from 'vue-router'
 import SvgIcon from '@/components/SvgIcon.vue'
 import 'cropperjs/dist/cropper.css'
@@ -161,6 +163,7 @@ export default defineComponent({
   setup() {
     const websiteStore = useWebsiteStore()
     const userStore = useUserStore()
+    const { handleApiError } = useErrorHandler()
     const router = useRouter()
     const user = computed(() => userStore.getUser)
     const isDarkMode = ref(websiteStore.isDark)
@@ -190,16 +193,23 @@ export default defineComponent({
           imageSmoothingQuality: 'high'
         })
         .toBlob(async blob => {
-          const file = new File([blob], curFileName)
-          await userStore.updateUser({
-            user: {
-              ...user.value,
-              name: editStatus.editedName
-            },
-            file
-          })
-          editStatus.isSaving = false
-          editStatus.showEditAvatar = !editStatus.showEditAvatar
+          try {
+            const file = new File([blob], curFileName)
+            await userStore.updateUser({
+              user: {
+                ...user.value,
+                name: editStatus.editedName
+              },
+              file
+            })
+            editStatus.isSaving = false
+            editStatus.showEditAvatar = !editStatus.showEditAvatar
+            ElMessage.success('头像更新成功')
+          } catch (error) {
+            editStatus.isSaving = false
+            handleApiError(error, '头像更新失败，请稍后重试')
+            // Keep dialog open so user can retry
+          }
         })
     }
 
@@ -239,14 +249,19 @@ export default defineComponent({
     }
     const toggleEditName = async () => {
       if (editStatus.isEditName && editStatus.editedName) {
-        // TODO 提交失败了怎么办
-        await userStore.updateUser({
-          user: {
-            ...user.value,
-            name: editStatus.editedName
-          }
-        })
-        editStatus.isEditName = !editStatus.isEditName
+        try {
+          await userStore.updateUser({
+            user: {
+              ...user.value,
+              name: editStatus.editedName
+            }
+          })
+          editStatus.isEditName = !editStatus.isEditName
+          ElMessage.success('用户名更新成功')
+        } catch (error) {
+          handleApiError(error, '用户名更新失败，请稍后重试')
+          // Keep editing mode active so user can retry
+        }
       } else {
         editStatus.isEditName = !editStatus.isEditName
       }

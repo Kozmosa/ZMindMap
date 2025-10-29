@@ -1,6 +1,6 @@
 <template>
-  <div class="map-wrapper">
-    <header class="map-header">
+  <div class="map-wrapper" v-loading="isInitialLoading" element-loading-text="加载思维导图中...">
+    <header class="map-header" v-if="!isInitialLoading">
       <div class="info">
         <a :href="`/app/folder/${mapData?.directory[0]?.id}`" class="name">
           <svg-icon icon="folder" />
@@ -23,14 +23,16 @@
       <map-op-popover :isMap="showMap" />
     </header>
     <keep-alive>
-      <component :is="curComponent" :key="curComponent"></component>
+      <component :is="curComponent" :key="curComponent" v-if="!isInitialLoading"></component>
     </keep-alive>
   </div>
 </template>
 <script>
-import { computed, defineComponent, ref } from 'vue'
+import { computed, defineComponent, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import useMapStore from '@/store/map'
+import useLoading from '@/hooks/useLoading'
+import useErrorHandler from '@/hooks/useErrorHandler'
 import Note from '@/components/note/Note.vue'
 import SvgIcon from '@/components/SvgIcon.vue'
 import MapOpPopover from '@/components/map/MapOpPopover.vue'
@@ -46,6 +48,8 @@ export default defineComponent({
   setup() {
     const store = useMapStore()
     const route = useRoute()
+    const { isLoading: isInitialLoading, withLoading } = useLoading(true)
+    const { handleApiError } = useErrorHandler()
 
     const docId = route.params?.id
     const mapData = computed(() => store.mapData)
@@ -53,7 +57,17 @@ export default defineComponent({
     const showMap = computed(() => curComponent.value === 'map')
     const isSaving = computed(() => store.isSaving)
 
-    store.fetchMap(docId)
+    // Load map data with loading state and error handling
+    onMounted(async () => {
+      try {
+        await withLoading(
+          () => store.fetchMap(docId),
+          '加载思维导图中...'
+        )
+      } catch (error) {
+        handleApiError(error, '加载思维导图失败')
+      }
+    })
 
     const toggleShowMap = () => {
       const nextView = curComponent.value === 'map' ? 'note' : 'map'
@@ -72,6 +86,7 @@ export default defineComponent({
       showMap,
       mapData,
       curComponent,
+      isInitialLoading,
       toggleShowMap
     }
   }

@@ -1,6 +1,6 @@
 <template>
-  <div class="container">
-    <div class="header">
+  <div class="container" v-loading="isLoading" element-loading-text="加载文件列表中...">
+    <div class="header" v-if="!isLoading">
       <bread-crumb :list="navigationList" />
       <div class="btn-wrapper">
         <div class="btn-show" @click="onToggleStyle" title="切换显示方式">
@@ -9,11 +9,12 @@
       </div>
     </div>
     <el-table
-      v-if="hasData && showTable"
+      v-if="hasData && showTable && !isLoading"
       :data="docTableData"
       style="width: 100%"
       row-class-name="table-row"
       @row-click="onRowClick"
+      @row-contextmenu="onRowContextMenu"
     >
       <el-table-column label="文件名" min-width="40%">
         <template #default="scope">
@@ -41,12 +42,13 @@
         </template>
       </el-table-column>
     </el-table>
-    <div class="grid" v-if="hasData && !showTable">
+    <div class="grid" v-if="hasData && !showTable && !isLoading">
       <div
         class="grid-item"
         v-for="row in docTableData"
         :key="row.id"
         @click="onRowClick(row)"
+        @contextmenu="onGridItemContextMenu($event, row)"
       >
         <SvgIcon
           class="icon"
@@ -58,21 +60,32 @@
         </div>
       </div>
     </div>
-    <div class="empty" v-show="!hasData">
+    <div class="empty" v-show="!hasData && !isLoading">
       <img :src="ICON_EMPTY" alt="" />
       <p class="empty-info">暂无文件，点击左上角"+"新建文件</p>
     </div>
+    
+    <!-- Context Menu -->
+    <context-menu
+      ref="contextMenuRef"
+      :menu-items="contextMenuItems"
+      @item-click="handleContextMenuClick"
+    />
   </div>
 </template>
 <script>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 
 import useWebsiteStore from '@/store/website'
 import useDocStore from '@/store/doc'
+import useLoading from '@/hooks/useLoading'
+import useErrorHandler from '@/hooks/useErrorHandler'
+import useContextMenu from '@/hooks/useContextMenu'
 
 import SvgIcon from '@/components/SvgIcon.vue'
 import DocPopover from '@/components/DocPopover.vue'
+import ContextMenu from '@/components/ContextMenu.vue'
 import ICON_EMPTY from '@/assets/pic/empty.png'
 import BreadCrumb from './components/BreadCrumb.vue'
 
@@ -80,19 +93,41 @@ export default {
   components: {
     BreadCrumb,
     SvgIcon,
-    DocPopover
+    DocPopover,
+    ContextMenu
   },
   setup() {
     const docStore = useDocStore()
     const websiteStore = useWebsiteStore()
     const router = useRouter()
     const route = useRoute()
+    const { isLoading, withLoading } = useLoading(true)
+    const { handleApiError } = useErrorHandler()
+    const {
+      contextMenuRef,
+      contextMenuItems,
+      showContextMenu,
+      handleContextMenuClick,
+      createFileContextMenu
+    } = useContextMenu()
 
     const folderId = route.params?.id || '0'
     const navigationList = computed(() => docStore.getNavigationLists(folderId))
     const docTableData = computed(() => docStore.getAllDocuments(folderId))
     const hasData = computed(() => docTableData.value?.length)
     const showTable = computed(() => websiteStore.showTable)
+
+    // Load documents with loading state and error handling
+    onMounted(async () => {
+      try {
+        await withLoading(
+          () => docStore.fetchAllDocuments(),
+          '加载文件列表中...'
+        )
+      } catch (error) {
+        handleApiError(error, '加载文件列表失败')
+      }
+    })
 
     const isFolder = row => 'folderType' in row
     const onRowClick = (row, column, event) => {
@@ -106,15 +141,58 @@ export default {
     const onToggleStyle = () => {
       websiteStore.toggleShowTable()
     }
+
+    // Context menu handlers
+    const contextMenuHandlers = {
+      open: (data) => {
+        onRowClick(data)
+      },
+      addFolder: (data) => {
+        // Use existing DocPopover functionality
+        console.log('Add folder to:', data)
+      },
+      addFile: (data) => {
+        // Use existing DocPopover functionality  
+        console.log('Add file to:', data)
+      },
+      rename: (data) => {
+        // Use existing DocPopover functionality
+        console.log('Rename:', data)
+      },
+      addQuick: (data) => {
+        docStore.addToQuickAccess(data.id)
+      },
+      delete: (data) => {
+        // Use existing DocPopover functionality
+        console.log('Delete:', data)
+      }
+    }
+
+    const onRowContextMenu = (row, column, event) => {
+      const menuItems = createFileContextMenu(row, contextMenuHandlers)
+      showContextMenu(event, menuItems, row)
+    }
+
+    const onGridItemContextMenu = (event, row) => {
+      const menuItems = createFileContextMenu(row, contextMenuHandlers)
+      showContextMenu(event, menuItems, row)
+    }
+
     return {
       hasData,
       showTable,
       navigationList,
       docTableData,
+      isLoading,
       onRowClick,
       onToggleStyle,
       isFolder,
-      ICON_EMPTY
+      ICON_EMPTY,
+      contextMenuRef,
+      contextMenuItems,
+      handleContextMenuClick,
+      onRowContextMenu,
+      onGridItemContextMenu
     }
   }
 }

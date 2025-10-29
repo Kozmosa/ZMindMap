@@ -10,19 +10,47 @@ const useDocStore = defineStore({
   id: 'doc',
   state: () => ({
     originAllDocs: undefined,
-    allTreeDocs: undefined
+    allTreeDocs: undefined,
+    quickAccessIds: [] // Store IDs of documents/folders in quick access
   }),
   getters: {
     getAllDocuments: state => id => {
       if (!state.originAllDocs) return []
       if (!id) return state.allTreeDocs
       const { folders, documents } = state.originAllDocs
+      
+      // Handle special virtual folders
+      if (id === 'quick') {
+        // Return documents/folders that are in quick access
+        return [...folders, ...documents].filter(doc => 
+          state.quickAccessIds.includes(doc.id)
+        )
+      }
+      
+      if (id === 'latest') {
+        // Return latest edited documents, sorted by updateTime
+        return [...folders, ...documents]
+          .sort((a, b) => new Date(b.updateTime) - new Date(a.updateTime))
+          .slice(0, 20) // Show latest 20 items
+      }
+      
+      // Regular folder handling
       return [...folders, ...documents].filter(doc => doc.folderId === id)
     },
     getNavigationLists: state => curFolderId => {
       const paths = []
       const folderList = state.originAllDocs?.folders
       if (!folderList || !folderList.length) return []
+      
+      // Handle special virtual folders
+      if (curFolderId === 'quick') {
+        return [{ name: '我的文件', id: '0' }, { name: '快速访问', id: 'quick' }]
+      }
+      
+      if (curFolderId === 'latest') {
+        return [{ name: '我的文件', id: '0' }, { name: '最近编辑', id: 'latest' }]
+      }
+      
       const curFolder = folderList.find(f => f.id === curFolderId)
       if (curFolder) {
         paths.unshift(curFolder)
@@ -60,6 +88,17 @@ const useDocStore = defineStore({
     async postRemove(data) {
       const res = await docApi.postRemove(data)
       this.setDoc(res)
+    },
+    addToQuickAccess(id) {
+      if (!this.quickAccessIds.includes(id)) {
+        this.quickAccessIds.push(id)
+      }
+    },
+    removeFromQuickAccess(id) {
+      this.quickAccessIds = this.quickAccessIds.filter(qId => qId !== id)
+    },
+    isInQuickAccess(id) {
+      return this.quickAccessIds.includes(id)
     }
   },
   persist: {
